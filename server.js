@@ -31,6 +31,38 @@ app.use(cors({
 if (DEBUG) app.use(morgan('dev'));
 
 app.use('/forward', rateLimit({ windowMs: 60_000, max: 180 }));
+app.use('/scrape', rateLimit({ windowMs: 60_000, max: 60 }));
+
+app.get('/scrape', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).type('text').send('Falta parámetro url');
+
+  let targetUrl;
+  try {
+    targetUrl = new URL(url);
+    if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+      return res.status(400).type('text').send('URL con protocolo no válido.');
+    }
+  } catch (e) {
+    return res.status(400).type('text').send('URL inválida.');
+  }
+
+  try {
+    if (DEBUG) console.log('[scrape] =>', url);
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Confluence-MJMC-Scraper/1.0' }
+    });
+    if (!response.ok) {
+      return res.status(response.status).type('text').send(`Error al fetchear la URL: ${response.statusText}`);
+    }
+    const text = await response.text();
+    if (DEBUG) console.log('[scrape] <=', response.status, url);
+    res.type('text').send(text);
+  } catch (e) {
+    if (DEBUG) console.error('[scrape] error', e);
+    res.status(502).type('text').send(`Error de red al intentar fetchear la URL: ${e.message}`);
+  }
+});
 
 const hopHeaders = new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailers','transfer-encoding','upgrade']);
 

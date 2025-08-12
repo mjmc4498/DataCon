@@ -111,6 +111,20 @@
 
         <div class="card mt-3 shadow-soft">
           <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="mb-0">🔗 Extraer de Enlace</h5>
+              <span class="smallcaps">beta</span>
+            </div>
+            <div class="input-group mb-2">
+              <input id="scrapeUrl" type="text" class="form-control" placeholder="Pega una URL para extraer su contenido…" />
+              <button class="btn btn-primary" id="btnScrape">Extraer</button>
+            </div>
+            <div id="scrapeResult" class="code border rounded p-2" style="border-color:#1f2937; min-height: 50px; max-height: 200px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <div class="card mt-3 shadow-soft">
+          <div class="card-body">
             <h6 class="mb-2">ℹ️ Notas rápidas</h6>
             <ul class="small text-muted mb-0">
               <li>Autenticación recomendada: <strong>Correo + API Token</strong> (Confluence Cloud).</li>
@@ -586,6 +600,23 @@
 
     $('#btnNewPreview').addEventListener('click', ()=>{ $('#preview').innerHTML = sanitizeHtml($('#newBody').value); });
     $('#btnCreate').addEventListener('click', ()=>{ createOrUpdate().catch(err => alert('Error: '+ err.message)); });
+
+    $('#btnScrape').addEventListener('click', async () => {
+      const url = $('#scrapeUrl').value.trim();
+      const resultEl = $('#scrapeResult');
+      if (!url) { resultEl.textContent = 'Por favor, introduce una URL.'; return; }
+      resultEl.innerHTML = loader('Extrayendo…');
+      try {
+        // Note: this assumes the proxy server is running on the same host.
+        // A more robust solution would use a configurable origin.
+        const res = await fetch(`/scrape?url=${encodeURIComponent(url)}`);
+        const text = await res.text();
+        if (!res.ok) throw new Error(text);
+        resultEl.textContent = text;
+      } catch (e) {
+        resultEl.textContent = `Error: ${e.message}`;
+      }
+    });
 
     // Hook opcional para LLM (backend propio)
     window.genAnswer = async function(question, contextDocs) {
