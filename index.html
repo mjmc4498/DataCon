@@ -66,11 +66,12 @@
               <h5 class="mb-0">🧠 Pregúntale a tu Confluence (RAG-lite)</h5>
               <span class="smallcaps">extractivo</span>
             </div>
-            <div class="input-group mb-2">
-              <input id="ask" type="text" class="form-control" placeholder="Haz una pregunta… (ej. ¿Qué es un Data Steward?)" />
+            <div class="input-group">
+              <input id="ask" type="text" class="form-control" placeholder="Haz una pregunta…" />
               <button class="btn btn-primary" id="btnAsk">Responder</button>
             </div>
-            <div class="text-muted small mb-2">Usa búsqueda → trae top páginas → selecciona frases relevantes → responde con citas.</div>
+            <input id="contextUrl" type="text" class="form-control form-control-sm mt-2" placeholder="Opcional: pega una URL para usar como contexto…" />
+            <div class="text-muted small mt-2 mb-2">La respuesta se basará en el enlace (si se proporciona) o en la búsqueda de Confluence.</div>
             <!-- Intent bar se inserta aquí dinámicamente -->
           </div>
         </div>
@@ -81,10 +82,8 @@
             <div id="answer-box" class="mt-3"></div>
           </div>
         </div>
-      </div>
 
-      <div class="col-12 col-lg-5">
-        <div class="card shadow-soft">
+        <div class="card mt-3 shadow-soft">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-3">
               <h5 class="mb-0">📄 Vista de Página</h5>
@@ -95,7 +94,9 @@
             </div>
           </div>
         </div>
+      </div>
 
+      <div class="col-12 col-lg-5">
         <div class="card mt-3 shadow-soft">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-2">
@@ -112,20 +113,6 @@
               <button class="btn btn-primary" id="btnCreate">Publicar</button>
             </div>
             <div id="preview" class="mt-3 border rounded p-3" style="border-color:#1f2937;"></div>
-          </div>
-        </div>
-
-        <div class="card mt-3 shadow-soft">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <h5 class="mb-0">🔗 Extraer de Enlace</h5>
-              <span class="smallcaps">beta</span>
-            </div>
-            <div class="input-group mb-2">
-              <input id="scrapeUrl" type="text" class="form-control" placeholder="Pega una URL para extraer su contenido…" />
-              <button class="btn btn-primary" id="btnScrape">Extraer</button>
-            </div>
-            <div id="scrapeResult" class="code border rounded p-2" style="border-color:#1f2937; min-height: 50px; max-height: 200px; overflow-y: auto;"></div>
           </div>
         </div>
 
@@ -317,7 +304,7 @@
     // ---- RAG-lite Answering ----
     async function answer(question) {
       answerEl.innerHTML = loader('Pensando…');
-      const externalUrl = $('#scrapeUrl').value.trim();
+      const externalUrl = $('#contextUrl').value.trim();
 
       let docs = [];
       // ---- Conditional Context: External URL vs Confluence Search ----
@@ -641,23 +628,6 @@
 
     $('#btnNewPreview').addEventListener('click', ()=>{ $('#preview').innerHTML = sanitizeHtml($('#newBody').value); });
     $('#btnCreate').addEventListener('click', ()=>{ createOrUpdate().catch(err => alert('Error: '+ err.message)); });
-
-    $('#btnScrape').addEventListener('click', async () => {
-      const url = $('#scrapeUrl').value.trim();
-      const resultEl = $('#scrapeResult');
-      if (!url) { resultEl.textContent = 'Por favor, introduce una URL.'; return; }
-      resultEl.innerHTML = loader('Extrayendo…');
-      try {
-        // Note: this assumes the proxy server is running on the same host.
-        // A more robust solution would use a configurable origin.
-        const res = await fetch(`/scrape?url=${encodeURIComponent(url)}`);
-        const rawHtml = await res.text();
-        if (!res.ok) throw new Error(rawHtml);
-        resultEl.textContent = htmlToText(rawHtml); // Use the enhanced function
-      } catch (e) {
-        resultEl.textContent = `Error: ${e.message}`;
-      }
-    });
 
     // Hook opcional para LLM (backend propio)
     window.genAnswer = async function(question, contextDocs) {
