@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confluence Buddy — Buscar, Escribir y Responder</title>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #0f172a; color: #e2e8f0; }
+    .navbar { background: #111827; }
+    .card { background: #0b1020; border: 1px solid #1f2937; }
+    .form-control, .form-select { background:#0b1020; color:#e5e7eb; border-color:#1f2937; }
+    .form-control:focus { box-shadow: none; border-color: #6366f1; }
+    .btn-primary { background:#6366f1; border-color:#6366f1; }
+    .btn-outline-light { border-color:#374151; }
+    .badge { background:#1f2937; }
+    .link-light { color: #93c5fd !important; }
+    .list-group-item { background:#0b1020; color:#e5e7eb; border-color:#1f2937; }
+    .text-muted { color:#9ca3af !important; }
+    .spinner-border { width: 1.25rem; height: 1.25rem; }
+    .smallcaps { font-variant: all-small-caps; letter-spacing: .04em; color:#9ca3af; }
+    .kbd { border:1px solid #374151; padding:.1rem .35rem; border-radius:.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0b1020; }
+    .pointer { cursor: pointer; }
+    .shadow-soft { box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .truncate-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; white-space: pre-wrap; }
+    a.badge { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">Confluence Buddy</a>
+      <div class="d-flex gap-2 ms-auto">
+        <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#settingsModal">⚙️ Configuración</button>
+        <button class="btn btn-primary btn-sm" id="btnQuickConnect">Conectar</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container my-4">
+    <div class="row g-3">
+      <div class="col-12 col-lg-7">
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0">🔎 Buscar en Confluence</h5>
+              <span class="smallcaps">Rápido & preciso</span>
+            </div>
+            <div class="input-group mb-2">
+              <input id="q" type="search" class="form-control" placeholder="Escribe CQL o texto libre: e.g. text ~ &quot;pipeline&quot; AND space = IS" />
+              <button class="btn btn-primary" id="btnSearch">Buscar</button>
+            </div>
+            <div class="d-flex gap-2 small text-muted mb-3">
+              <span class="kbd">/</span> para enfocar • CQL soportado • Cache local ✨
+            </div>
+            <div id="results" class="list-group small"></div>
+          </div>
+        </div>
+
+        <div class="card mt-3 shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0">🧠 Pregúntale a tu Confluence (RAG-lite)</h5>
+              <span class="smallcaps">extractivo</span>
+            </div>
+            <div class="input-group mb-2">
+              <input id="ask" type="text" class="form-control" placeholder="Haz una pregunta… (ej. ¿Qué es un Data Steward?)" />
+              <button class="btn btn-primary" id="btnAsk">Responder</button>
+            </div>
+            <div class="text-muted small mb-2">Usa búsqueda → trae top páginas → selecciona frases relevantes → responde con citas.</div>
+            <!-- Intent bar se inserta aquí dinámicamente -->
+            <div id="answer" class=""></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-5">
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0">📄 Vista de Página</h5>
+              <span id="pageMeta" class="small text-muted"></span>
+            </div>
+            <div id="pageView" class="small" style="min-height: 160px;">
+              <div class="text-muted">Selecciona un resultado para ver el contenido.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-3 shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="mb-0">✍️ Crear / Actualizar Página</h5>
+              <span class="smallcaps">HTML → storage</span>
+            </div>
+            <div class="row g-2">
+              <div class="col-8"><input id="newTitle" class="form-control" placeholder="Título" /></div>
+              <div class="col-4"><input id="spaceKey" class="form-control" placeholder="ESPACIO" /></div>
+              <div class="col-12"><textarea id="newBody" class="form-control" rows="6" placeholder="Contenido en HTML simple (p, h1, ul, code)…"></textarea></div>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+              <button class="btn btn-outline-light" id="btnNewPreview">Previsualizar</button>
+              <button class="btn btn-primary" id="btnCreate">Publicar</button>
+            </div>
+            <div id="preview" class="mt-3 border rounded p-3" style="border-color:#1f2937;"></div>
+          </div>
+        </div>
+
+        <div class="card mt-3 shadow-soft">
+          <div class="card-body">
+            <h6 class="mb-2">ℹ️ Notas rápidas</h6>
+            <ul class="small text-muted mb-0">
+              <li>Autenticación recomendada: <strong>Correo + API Token</strong> (Confluence Cloud).</li>
+              <li>Si hay CORS, usa el <strong>Proxy</strong> (abajo) o despliega como extensión interna.</li>
+              <li>Las credenciales viven en <code>localStorage</code> de tu navegador.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content" style="background:#0b1020; color:#e5e7eb; border-color:#1f2937;">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Configuración de Conexión</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <label class="form-label">Base URL (ej. https://TUORG.atlassian.net/wiki)</label>
+              <input id="baseUrl" class="form-control" placeholder="https://…/wiki" />
+            </div>
+            <div class="col-12 col-lg-6">
+              <label class="form-label">CORS Proxy (opcional)</label>
+              <input id="proxyUrl" class="form-control" placeholder="https://tu-proxy/forward?url=" />
+              <div class="form-text text-muted">Si Confluence bloquea CORS, enruta peticiones vía tu proxy.</div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <label class="form-label">Correo (Basic Auth)</label>
+              <input id="email" class="form-control" placeholder="tucorreo@empresa.com" />
+            </div>
+            <div class="col-12 col-lg-6">
+              <label class="form-label">API Token / OAuth Bearer</label>
+              <input id="token" class="form-control" placeholder="••••••••" />
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="useBearer">
+                <label class="form-check-label" for="useBearer">Usar Bearer (OAuth 2.0 3LO) en lugar de Basic</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Espacios por defecto (coma-separados)</label>
+              <input id="spacesDefault" class="form-control" placeholder="IS, DGO, DATA" />
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="debugMode">
+                <label class="form-check-label" for="debugMode">Modo debug (logs en consola)</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button class="btn btn-outline-light" id="btnClearCreds">Olvidar credenciales</button>
+          <button class="btn btn-primary" id="btnSaveSettings">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- elasticlunr for client-side indexing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/elasticlunr/0.9.6/elasticlunr.min.js" integrity="sha512-npGq1J7j1T0YEzXJv7nJvM0M0c8jT0uylwW7bRzQ1I4wK9o0y0eJ5LChq0oLu7p1cG8pGf9vQd1Q0gH2oYq6mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const resultsEl = $('#results');
+    const answerEl  = $('#answer');
+    const pageViewEl = $('#pageView');
+    const pageMetaEl = $('#pageMeta');
+
+    const store = {
+      get() { return JSON.parse(localStorage.getItem('confBuddy') || '{}'); },
+      set(data) { localStorage.setItem('confBuddy', JSON.stringify(data)); },
+      patch(p) { const cur = this.get(); this.set({ ...cur, ...p }); }
+    };
+
+    // ---- Auth & Fetch wrapper ----
+    function buildHeaders() {
+      const { email, token, useBearer } = store.get();
+      const headers = { 'Accept': 'application/json' };
+      if (token && useBearer) headers['Authorization'] = `Bearer ${token}`;
+      if (token && email && !useBearer) headers['Authorization'] = 'Basic ' + btoa(`${email}:${token}`);
+      return headers;
+    }
+
+    function debugLog(...args){
+      const { debug } = store.get();
+      if (debug) console.log('[conf-buddy]', ...args);
+    }
+
+    async function confFetch(path, opts = {}) {
+      const { baseUrl, proxyUrl } = store.get();
+      if (!baseUrl) throw new Error('Configura la Base URL primero.');
+      const url = new URL(path, baseUrl).toString();
+
+      const mustBeRest = /\/rest\/api\//.test(new URL(url).pathname);
+      if (!mustBeRest) throw new Error('Por seguridad, solo se permiten rutas /rest/api/*');
+
+      const finalUrl = proxyUrl ? `${proxyUrl}${encodeURIComponent(url)}` : url;
+      const headers = { ...buildHeaders(), ...(opts.headers || {}) };
+      debugLog('FETCH', { finalUrl, headers: Object.keys(headers), opts });
+
+      const res = await fetch(finalUrl, { ...opts, headers });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      const ct = res.headers.get('content-type') || '';
+      return ct.includes('application/json') ? res.json() : res.text();
+    }
+
+    // ---- Search ----
+    async function search(q) {
+      resultsEl.innerHTML = loader('Buscando…');
+      const { spacesDefault } = store.get();
+      const spaces = (spacesDefault || '').split(',').map(s => s.trim()).filter(Boolean);
+      const looksLikeCQL = /\b(space|text|type|title|creator|lastModified|label)\b|\"/.test(q);
+      let cql = looksLikeCQL ? q : `type = page AND text ~ "${q}" ${spaces.length? ' AND space in ('+spaces.map(s=>`"${s}"`).join(',')+')':''}`;
+      const url = `/rest/api/search?cql=${encodeURIComponent(cql)}&limit=25`;
+      debugLog('SEARCH CQL', cql);
+      const data = await confFetch(url);
+      const results = (data.results || []).map(hit => normalizeSearchHit(hit));
+      cachePages(results);
+      renderResults(results);
+    }
+
+    function normalizeSearchHit(hit) {
+      const id = hit.content?.id || hit.id;
+      const title = hit.title || hit.content?.title || '(sin título)';
+      const url = hit.url || hit._links?.webui || hit._links?.self || '';
+      const space = hit.space?.key || hit.resultGlobalContainer?.displayName || hit.space?.name || '';
+      const lastMod = hit.lastModified || hit.content?.version?.when || hit.lastModifiedDate || '';
+      return { id, title, url, space, lastMod };
+    }
+
+    function renderResults(results) {
+      if (!results.length) { resultsEl.innerHTML = `<div class="list-group-item">Sin resultados.</div>`; return; }
+      resultsEl.innerHTML = results.map(r => `
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-start pointer" data-id="${r.id}">
+          <div class="me-auto">
+            <div class="fw-semibold">${escapeHtml(r.title)}</div>
+            <div class="text-muted small truncate-2">${r.space ? 'Espacio: '+r.space+' • ':''}${r.id}${r.lastMod? ' • '+new Date(r.lastMod).toLocaleString():''}</div>
+          </div>
+          <span class="badge rounded-pill">Ver</span>
+        </a>`).join('');
+      resultsEl.querySelectorAll('[data-id]').forEach(a => a.addEventListener('click', () => openPage(a.getAttribute('data-id'))));
+    }
+
+    function loader(text='Cargando…') {
+      return `<div class="d-flex align-items-center gap-2 text-muted"><div class="spinner-border" role="status"></div><span>${text}</span></div>`;
+    }
+
+    function cachePages(results) {
+      const cache = store.get().cache || {};
+      results.forEach(r => { cache[r.id] = { meta: r, body: cache[r.id]?.body || null }; });
+      store.patch({ cache });
+    }
+
+    // ---- Page View ----
+    async function openPage(id) {
+      pageViewEl.innerHTML = loader('Trayendo contenido…');
+      const html = await getPageHTML(id);
+      pageViewEl.innerHTML = sanitizeHtml(html);
+      const cache = store.get().cache || {}; const meta = cache[id]?.meta || {};
+      pageMetaEl.textContent = `${meta.space || ''} • ${meta.id || ''}`;
+    }
+
+    async function getPageHTML(id) {
+      const cache = store.get().cache || {};
+      if (cache[id]?.body) return cache[id].body;
+      const data = await confFetch(`/rest/api/content/${id}?expand=body.storage,version,space,metadata.labels`);
+      const html = data?.body?.storage?.value || '<em>(vacío)</em>';
+      cache[id] = cache[id] || {}; cache[id].body = html; store.patch({ cache });
+      return html;
+    }
+
+    // ---- RAG-lite Answering ----
+    async function answer(question) {
+      answerEl.innerHTML = loader('Pensando…');
+      const q = $('#q').value.trim();
+      let hits = [];
+      try {
+        if (q) { await search(q); }
+        const cache = store.get().cache || {}; hits = Object.values(cache).map(x => x.meta).filter(Boolean).slice(0, 20);
+      } catch (e) { /* meh */ }
+      const docs = [];
+      for (const h of hits.slice(0, 12)) {
+        try {
+          const html = await getPageHTML(h.id);
+          const text = htmlToText(html).slice(0, 20000);
+          docs.push({ id: h.id, title: h.title, space: h.space, text });
+        } catch (e) { console.warn('skip doc', h.id, e); }
+      }
+      if (!docs.length) { answerEl.innerHTML = `<div class="alert alert-warning">No hay documentos para indexar. Haz una búsqueda primero.</div>`; return; }
+
+      const idx = elasticlunr(function () { this.setRef('id'); this.addField('title'); this.addField('text'); });
+      docs.forEach(d => idx.addDoc(d));
+
+      const results = idx.search(question, { expand: true }).slice(0, 5);
+      const top = results.map(r => docs.find(d => d.id == r.ref));
+
+      const sentences = [];
+      top.forEach(d => {
+        if (!d) return;
+        splitSentences(d.text).forEach(s => sentences.push({ s, doc: d }));
+      });
+      const qTokens = tokenize(question);
+      sentences.forEach(obj => { obj.score = jaccard(qTokens, tokenize(obj.s)); });
+      const picked = sentences.filter(s=>s.s.length>20).sort((a,b)=>b.score-a.score).slice(0,8);
+
+      const html = `
+        <div class="">
+          <div class="mb-2">Respuesta (extractiva, top evidencias):</div>
+          <ul class="mb-3">
+            ${picked.map(p => `<li class="mb-1">${escapeHtml(p.s)} <span class="text-muted">— <a class="link-light" href="#" data-open="${p.doc.id}">${escapeHtml(p.doc.title)}</a></span></li>`).join('')}
+          </ul>
+          <div class="text-muted small">Tip: para respuestas generativas, conecta tu LLM favorito en <span class="kbd">window.genAnswer</span>.</div>
+        </div>`;
+      answerEl.innerHTML = html;
+      answerEl.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', (e)=>{ e.preventDefault(); openPage(a.getAttribute('data-open')); }));
+    }
+
+    // ---- Create / Update ----
+    async function createOrUpdate() {
+      const title = $('#newTitle').value.trim();
+      const spaceKey = $('#spaceKey').value.trim();
+      const html = $('#newBody').value.trim();
+      if (!title || !spaceKey || !html) { alert('Completa título, espacio y contenido.'); return; }
+
+      const cql = `title = "${title.replace(/\\"/g,'\\\\\\"')}" AND space = "${spaceKey}" AND type = page`;
+      let existingId = null;
+      try {
+        const data = await confFetch(`/rest/api/search?cql=${encodeURIComponent(cql)}&limit=1`);
+        existingId = data.results?.[0]?.content?.id || null;
+      } catch (e) { console.warn('search existing failed', e); }
+
+      if (existingId) {
+        const cur = await confFetch(`/rest/api/content/${existingId}?expand=version`);
+        const nextVer = (cur.version?.number || 1) + 1;
+        const payload = {
+          id: existingId,
+          type: 'page',
+          title,
+          version: { number: nextVer },
+          body: { storage: { value: html, representation: 'storage' } }
+        };
+        await confFetch(`/rest/api/content/${existingId}`, { method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+        toast('Página actualizada ✅');
+        openPage(existingId);
+      } else {
+        const payload = {
+          type: 'page',
+          title,
+          space: { key: spaceKey },
+          body: { storage: { value: html, representation: 'storage' } }
+        };
+        const created = await confFetch('/rest/api/content', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+        toast('Página creada ✅');
+        openPage(created.id);
+      }
+    }
+
+    // ---- Utils ----
+    function htmlToText(html) {
+      const tmp = document.createElement('div'); tmp.innerHTML = html;
+      tmp.querySelectorAll('script, iframe').forEach(n => n.remove());
+      tmp.querySelectorAll('code, pre').forEach(n => n.remove());
+      return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    function sanitizeHtml(html) {
+      const tmp = document.createElement('div'); tmp.innerHTML = html;
+      tmp.querySelectorAll('script, iframe').forEach(n => n.remove());
+      return tmp.innerHTML;
+    }
+    function escapeHtml(str='') { return str.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+    function splitSentences(text) { return text.split(/(?<=[\.!?])\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(s=>s.trim()).filter(Boolean); }
+    function tokenize(s='') { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/[^a-z0-9áéíóúñ]+/i).filter(x=>x && x.length>2); }
+    function jaccard(aArr, bArr) { const A = new Set(aArr), B = new Set(bArr); let inter=0; A.forEach(x=>{ if(B.has(x)) inter++; }); const union = A.size + B.size - inter; return union? inter/union : 0; }
+    function toast(msg) {
+      const el = document.createElement('div');
+      el.className = 'position-fixed bottom-0 end-0 m-3 alert alert-dark border';
+      el.style.background='#111827'; el.style.color='#e5e7eb'; el.textContent = msg;
+      document.body.appendChild(el); setTimeout(()=> el.remove(), 2600);
+    }
+
+    // ---- Intent Bot (rule-based) ----
+    const INTENTS = ['buscar','responder','resumir','definir_glosario','política','procedimiento','incidente','crear_página','actualizar_página','lineage','personas','reunión'];
+    const KEYWORDS = {
+      buscar:[/busca(r)?/i,/\bencuentra(r)?\b/i,/\bCQL\b/i,/\btext\s*~\b/i],
+      responder:[/responde(r)?/i,/\bexplica(r)?\b/i,/\bqué es\b/i,/\bcomo funciona\b/i],
+      resumir:[/resum(e|ir)/i,/\bTL;DR\b/i,/\bresumen\b/i],
+      definir_glosario:[/\bdefine?\b/i,/\bdefinición\b/i,/\bglosario\b/i,/\btermin(o|ología)\b/i],
+      política:[/\bpolítica(s)?\b/i,/\bestándar(es)?\b/i,/\bnorma(s)?\b/i],
+      procedimiento:[/\bprocedimiento(s)?\b/i,/\bpaso(s)?\s*a\s*paso(s)?\b/i,/\bgui(a|ía)\b/i],
+      incidente:[/\bincidente(s)?\b/i,/\bissue(s)?\b/i,/\bpostmortem\b/i,/\bRCA\b/i],
+      crear_página:[/\bcrea(r)?\b/i,/\bnueva página\b/i,/\bpublica(r)?\b/i],
+      actualizar_página:[/\bactualiza(r)?\b/i,/\bmodifica(r)?\b/i,/\bsube versión\b/i],
+      lineage:[/\blineage\b/i,/\blinaje\b/i,/\borigen\b/i,/\bflujo de datos\b/i],
+      personas:[/\bowner(s)?\b/i,/\bresponsable(s)?\b/i,/\bRACI\b/i,/\bcontacto\b/i],
+      reunión:[/\bminuta(s)?\b/i,/\bacta\b/i,/\breunión\b/i,/\bacuerdos\b/i]
+    };
+    function scoreIntent(text){
+      const scores = {};
+      for (const it of INTENTS){ scores[it]=(KEYWORDS[it]||[]).reduce((a,re)=>a+(re.test(text)?1:0),0); }
+      if (!scores['buscar'] && /\".+\"/.test(text)) scores['buscar'] += 0.5;
+      if (!scores['responder'] && /^[¿?]?(qué|como|por qué|cuál)/i.test(text)) scores['responder'] += 0.75;
+      let best='buscar', bestScore=-1; for (const [k,v] of Object.entries(scores)){ if (v>bestScore){ best=k; bestScore=v; } }
+      const conf = Math.min(1, bestScore/2.5);
+      return { intent: best, confidence: Number(conf.toFixed(2)), scores };
+    }
+    function extractEntities(text){
+      const spaces = Array.from(text.matchAll(/\b([A-Z]{2,6})\b/g)).map(m=>m[1]).filter(s=> s.length>=2 && s.length<=6);
+      const quotes = Array.from(text.matchAll(/\"([^"]{2,120})\"/g)).map(m=>m[1]);
+      const tags = Array.from(text.matchAll(/#([a-z0-9_]+)/gi)).map(m=>m[1].toLowerCase());
+      const dates = Array.from(text.matchAll(/\b(20\d{2})(?:[-\/](0[1-9]|1[0-2]))?(?:[-\/]([0-2]\d|3[01]))?\b/g)).map(m=>m[0]);
+      return { spaces:[...new Set(spaces)], phrases:quotes, tags, dates };
+    }
+    function buildCQL({intent, entities, raw, defaultSpaces}) {
+      const sp = (entities.spaces?.length? entities.spaces : (defaultSpaces||[])).map(s=>`"${s}"`).join(',');
+      const inSpace = sp? ` AND space in (${sp})` : '';
+      const quoted = entities.phrases?.[0];
+      switch(intent){
+        case 'definir_glosario': return `type = page AND (title ~ "glosario" OR text ~ "definición")${inSpace}`;
+        case 'política': return `type = page AND (title ~ "política" OR text ~ "política" OR label = policy)${inSpace}`;
+        case 'procedimiento': return `type = page AND (title ~ "procedimiento" OR text ~ "paso a paso" OR label = runbook)${inSpace}`;
+        case 'incidente': return `type = page AND (title ~ "incidente" OR text ~ "postmortem" OR label = rca)${inSpace}`;
+        case 'lineage': return `type = page AND (title ~ "lineage" OR text ~ "linaje" OR label = lineage)${inSpace}`;
+        case 'resumir': return `type = page AND text ~ "${quoted || raw}"${inSpace}`;
+        case 'crear_página':
+        case 'actualizar_página': return `type = page AND title ~ "${quoted || raw}"${inSpace}`;
+        case 'personas': return `type = page AND (title ~ "RACI" OR text ~ "Data Owner" OR text ~ "responsable")${inSpace}`;
+        case 'reunión': return `type = page AND (title ~ "minuta" OR title ~ "reunión" OR label = minutes)${inSpace}`;
+        default: return `type = page AND text ~ "${quoted || raw}"${inSpace}`;
+      }
+    }
+    function suggestActions(intent){
+      const actions = {
+        buscar:['🔎 Buscar','🧠 Responder (extractivo)'],
+        responder:['🧠 Responder (extractivo)','🔎 Refinar búsqueda'],
+        resumir:['🧩 Resumir top página','🔎 Buscar soporte'],
+        definir_glosario:['📘 Abrir glosario','➕ Crear término'],
+        política:['📏 Ver políticas','📝 Crear borrador política'],
+        procedimiento:['🛠️ Abrir runbooks','📝 Generar plantilla'],
+        incidente:['🚨 Ver incidentes/RCA','🧾 Nueva RCA (plantilla)'],
+        crear_página:['📝 Crear página','🔎 Ver similares'],
+        actualizar_página:['📤 Actualizar existente','🔎 Ver versiones'],
+        lineage:['🕸️ Ver lineage','🔎 Buscar fuentes'],
+        personas:['👥 Ver RACI','🔎 Buscar Owners'],
+        reunión:['🗒️ Plantilla minuta','🔎 Minutas recientes']
+      };
+      return actions[intent] || ['🔎 Buscar'];
+    }
+    function classifyAndRoute(query){
+      const raw = String(query||'').trim();
+      const { intent, confidence, scores } = scoreIntent(raw);
+      const entities = extractEntities(raw);
+      const defaultSpaces = (store.get().spacesDefault||'').split(',').map(s=>s.trim()).filter(Boolean);
+      const cql = buildCQL({intent, entities, raw, defaultSpaces});
+      return { intent, confidence, entities, cql, scores };
+    }
+
+    // UI: barra de intención
+    const intentBar = document.createElement('div');
+    intentBar.className = 'd-flex flex-wrap gap-2 align-items-center mb-2';
+    answerEl.parentElement.insertBefore(intentBar, answerEl);
+    function renderIntentBar(info){
+      intentBar.innerHTML = '';
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = `Intención: ${info.intent} (${(info.confidence*100).toFixed(0)}%)`;
+      intentBar.appendChild(badge);
+      suggestActions(info.intent).forEach(txt=>{
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-outline-light btn-sm';
+        btn.textContent = txt;
+        btn.addEventListener('click', ()=> handleSuggestedAction(txt, info));
+        intentBar.appendChild(btn);
+      });
+      // entidades encontradas
+      if (info.entities.spaces?.length){
+        const tag = document.createElement('a');
+        tag.href="#"; tag.className='badge'; tag.textContent = `Espacios: ${info.entities.spaces.join(', ')}`;
+        tag.onclick = (e)=>{ e.preventDefault(); $('#q').value = info.cql; $('#btnSearch').click(); };
+        intentBar.appendChild(tag);
+      }
+    }
+    async function handleSuggestedAction(txt, info){
+      if (txt.includes('Buscar')) {
+        $('#q').value = info.cql; $('#btnSearch').click();
+      } else if (txt.includes('Responder')) {
+        $('#ask').value = $('#ask').value || $('#q').value || info.entities.phrases?.[0] || '';
+        $('#btnAsk').click();
+      } else if (txt.includes('Crear') || txt.includes('plantilla')) {
+        const tpl = templatesForIntent(info.intent, info);
+        $('#newTitle').value = tpl.title;
+        $('#spaceKey').value = (info.entities.spaces?.[0] || (store.get().spacesDefault||'').split(',')[0] || '').toUpperCase();
+        $('#newBody').value = tpl.html;
+        $('#btnNewPreview').click();
+        window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
+      } else {
+        $('#q').value = info.cql; $('#btnSearch').click();
+      }
+    }
+    function templatesForIntent(intent, info){
+      const now = new Date().toISOString().slice(0,10);
+      const topic = (info.entities.phrases?.[0] || 'Tema');
+      const base = { title: `${intent.replace('_',' ')} — ${topic}`, html: `<p>Contenido inicial.</p>` };
+      if (intent==='definir_glosario') return { title:`Glosario: ${topic}`, html:`<h1>${topic}</h1><p><strong>Definición:</strong> …</p><p><strong>Contexto de negocio:</strong> …</p><p><strong>Reglas de uso:</strong> …</p><p><strong>Dueño del término:</strong> …</p><p><strong>Sinónimos:</strong> …</p><p><strong>Fuente:</strong> …</p>` };
+      if (intent==='política') return { title:`Política de Datos — ${topic}`, html:`<h1>Política de Datos — ${topic}</h1><h3>Objetivo</h3><p>…</p><h3>Alcance</h3><p>…</p><h3>Roles</h3><p>…</p><h3>Requisitos</h3><ul><li>…</li></ul><h3>Cumplimiento</h3><p>…</p>` };
+      if (intent==='procedimiento') return { title:`Procedimiento — ${topic}`, html:`<h1>Procedimiento — ${topic}</h1><ol><li>Prerequisitos</li><li>Paso 1</li><li>Paso 2</li></ol><h3>Validación</h3><p>…</p>` };
+      if (intent==='incidente') return { title:`RCA — ${topic} (${now})`, html:`<h1>Postmortem / RCA — ${topic}</h1><p><strong>Fecha:</strong> ${now}</p><p><strong>Impacto:</strong> …</p><p><strong>Causa raíz:</strong> …</p><p><strong>Timeline:</strong> …</p><p><strong>Acciones:</strong> …</p>` };
+      if (intent==='reunión') return { title:`Minuta — ${topic} (${now})`, html:`<h1>Minuta — ${topic}</h1><p><strong>Fecha:</strong> ${now}</p><p><strong>Asistentes:</strong> …</p><p><strong>Agenda:</strong> …</p><p><strong>Acuerdos:</strong> …</p><p><strong>Next steps:</strong> …</p>` };
+      return base;
+    }
+
+    // ---- Events ----
+    $('#btnSaveSettings').addEventListener('click', () => {
+      store.patch({
+        baseUrl: $('#baseUrl').value.trim(),
+        proxyUrl: $('#proxyUrl').value.trim(),
+        email: $('#email').value.trim(),
+        token: $('#token').value.trim(),
+        useBearer: $('#useBearer').checked,
+        spacesDefault: $('#spacesDefault').value.trim(),
+        debug: $('#debugMode').checked
+      });
+      toast('Guardado ✅');
+    });
+    $('#btnClearCreds').addEventListener('click', () => { store.set({}); fillSettings(); toast('Borrado ✅'); });
+
+    function fillSettings() {
+      const s = store.get();
+      $('#baseUrl').value = s.baseUrl || '';
+      $('#proxyUrl').value = s.proxyUrl || '';
+      $('#email').value = s.email || '';
+      $('#token').value = s.token || '';
+      $('#useBearer').checked = !!s.useBearer;
+      $('#spacesDefault').value = s.spacesDefault || '';
+      $('#debugMode').checked = !!s.debug;
+    }
+
+    $('#btnQuickConnect').addEventListener('click', () => {
+      const modal = bootstrap.Modal.getOrCreateInstance($('#settingsModal'));
+      fillSettings(); modal.show();
+    });
+
+    document.getElementById('btnSearch').addEventListener('click', async () => {
+      const qtext = $('#q').value.trim();
+      const info = classifyAndRoute(qtext);
+      renderIntentBar(info);
+      const likelyCQL = /type\s*=\s*page|text\s*~|space\s*in\s*\(/i.test(qtext);
+      const run = likelyCQL ? qtext : info.cql;
+      await search(run).catch(err => resultsEl.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`);
+    });
+
+    document.getElementById('btnAsk').addEventListener('click', async () => {
+      const qtext = $('#ask').value.trim() || $('#q').value.trim();
+      const info = classifyAndRoute(qtext);
+      renderIntentBar(info);
+      await answer(qtext).catch(err => answerEl.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`);
+    });
+
+    $('#ask').addEventListener('keydown', (e)=>{ if (e.key==='Enter') $('#btnAsk').click(); });
+    $('#q').addEventListener('keydown', (e)=>{ if (e.key==='Enter') $('#btnSearch').click(); });
+    window.addEventListener('keydown', (e)=>{ if (e.key === '/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA') { e.preventDefault(); $('#q').focus(); }});
+
+    $('#btnNewPreview').addEventListener('click', ()=>{ $('#preview').innerHTML = sanitizeHtml($('#newBody').value); });
+    $('#btnCreate').addEventListener('click', ()=>{ createOrUpdate().catch(err => alert('Error: '+ err.message)); });
+
+    // Hook opcional para LLM (backend propio)
+    window.genAnswer = async function(question, contextDocs) {
+      return 'Conecta tu LLM favorito aquí.';
+    }
+
+    // Init
+    fillSettings();
+  </script>
+</body>
+</html>
