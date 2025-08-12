@@ -311,47 +311,72 @@
     // ---- RAG-lite Answering ----
     async function answer(question) {
       answerEl.innerHTML = loader('Pensando…');
-      const q = $('#q').value.trim();
-      let hits = [];
-      try {
-        if (q) { await search(q); }
-        const cache = store.get().cache || {}; hits = Object.values(cache).map(x => x.meta).filter(Boolean).slice(0, 20);
-      } catch (e) { /* meh */ }
-      const docs = [];
-      for (const h of hits.slice(0, 12)) {
+      const externalUrl = $('#scrapeUrl').value.trim();
+
+      let docs = [];
+      // ---- Conditional Context: External URL vs Confluence Search ----
+      if (externalUrl) {
+        // --- CONTEXT: EXTERNAL URL ---
         try {
-          const html = await getPageHTML(h.id);
-          const text = htmlToText(html).slice(0, 20000);
-          docs.push({ id: h.id, title: h.title, space: h.space, text });
-        } catch (e) { console.warn('skip doc', h.id, e); }
+          const res = await fetch(`/scrape?url=${encodeURIComponent(externalUrl)}`);
+          const text = await res.text();
+          if (!res.ok) throw new Error(text);
+          const cleanText = htmlToText(text);
+          docs.push({ id: externalUrl, title: externalUrl, space: 'Web', text: cleanText });
+        } catch (e) {
+          answerEl.innerHTML = `<div class="alert alert-danger">Error al extraer del enlace: ${escapeHtml(e.message)}</div>`;
+          return;
+        }
+      } else {
+        // --- CONTEXT: CONFLUENCE PAGES ---
+        const q = $('#q').value.trim();
+        let hits = [];
+        try {
+          if (q) { await search(q); }
+          const cache = store.get().cache || {};
+          hits = Object.values(cache).map(x => x.meta).filter(Boolean).slice(0, 20);
+        } catch (e) { /* ignore search errors */ }
+
+        for (const h of hits.slice(0, 12)) {
+          try {
+            const html = await getPageHTML(h.id);
+            const text = htmlToText(html).slice(0, 20000);
+            docs.push({ id: h.id, title: h.title, space: h.space, text });
+          } catch (e) { console.warn('skip doc', h.id, e); }
+        }
       }
-      if (!docs.length) { answerEl.innerHTML = `<div class="alert alert-warning">No hay documentos para indexar. Haz una búsqueda primero.</div>`; return; }
 
-      const idx = elasticlunr(function () { this.setRef('id'); this.addField('title'); this.addField('text'); });
-      docs.forEach(d => idx.addDoc(d));
+      if (!docs.length) {
+        answerEl.innerHTML = `<div class="alert alert-warning">No hay documentos de contexto. Haz una búsqueda en Confluence o proporciona un enlace.</div>`;
+        return;
+      }
 
-      const results = idx.search(question, { expand: true }).slice(0, 5);
-      const top = results.map(r => docs.find(d => d.id == r.ref));
-
+      // --- Sentence Selection & Scoring (Common Logic) ---
       const sentences = [];
-      top.forEach(d => {
+      docs.forEach(d => {
         if (!d) return;
         splitSentences(d.text).forEach(s => sentences.push({ s, doc: d }));
       });
       const qTokens = tokenize(question);
       sentences.forEach(obj => { obj.score = jaccard(qTokens, tokenize(obj.s)); });
-      const picked = sentences.filter(s=>s.s.length>20).sort((a,b)=>b.score-a.score).slice(0,8);
+      const picked = sentences.filter(s => s.s.length > 20).sort((a, b) => b.score - a.score).slice(0, 8);
 
-      const html = `
+      // --- Render Answer ---
+      const answerHtml = `
         <div class="">
           <div class="mb-2">Respuesta (extractiva, top evidencias):</div>
           <ul class="mb-3">
-            ${picked.map(p => `<li class="mb-1">${escapeHtml(p.s)} <span class="text-muted">— <a class="link-light" href="#" data-open="${p.doc.id}">${escapeHtml(p.doc.title)}</a></span></li>`).join('')}
+            ${picked.map(p => {
+              const sourceLink = p.doc.space === 'Web'
+                ? `<a class="link-light" href="${escapeHtml(p.doc.id)}" target="_blank">${escapeHtml(p.doc.title)}</a>`
+                : `<a class="link-light" href="#" data-open="${p.doc.id}">${escapeHtml(p.doc.title)}</a>`;
+              return `<li class="mb-1">${escapeHtml(p.s)} <span class="text-muted">— ${sourceLink}</span></li>`;
+            }).join('')}
           </ul>
           <div class="text-muted small">Tip: para respuestas generativas, conecta tu LLM favorito en <span class="kbd">window.genAnswer</span>.</div>
         </div>`;
-      answerEl.innerHTML = html;
-      answerEl.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', (e)=>{ e.preventDefault(); openPage(a.getAttribute('data-open')); }));
+      answerEl.innerHTML = answerHtml;
+      answerEl.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); openPage(a.getAttribute('data-open')); }));
     }
 
     // ---- Create / Update ----
