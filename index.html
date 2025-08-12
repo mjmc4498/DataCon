@@ -427,8 +427,16 @@
 
     // ---- Utils ----
     function htmlToText(html) {
-      const tmp = document.createElement('div'); tmp.innerHTML = html;
-      tmp.querySelectorAll('script, iframe').forEach(n => n.remove());
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      // Remove common non-content elements
+      const selectorsToRemove = [
+        'script', 'style', 'iframe', 'nav', 'footer', 'aside', 'header',
+        '[role="navigation"]', '[role="banner"]', '[role="contentinfo"]',
+        '#sidebar', '.sidebar', '#footer', '.footer', '#header', '.header'
+      ];
+      tmp.querySelectorAll(selectorsToRemove.join(', ')).forEach(n => n.remove());
+      // Optionally, remove code blocks if they are not the main content
       tmp.querySelectorAll('code, pre').forEach(n => n.remove());
       return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
     }
@@ -643,9 +651,9 @@
         // Note: this assumes the proxy server is running on the same host.
         // A more robust solution would use a configurable origin.
         const res = await fetch(`/scrape?url=${encodeURIComponent(url)}`);
-        const text = await res.text();
-        if (!res.ok) throw new Error(text);
-        resultEl.textContent = text;
+        const rawHtml = await res.text();
+        if (!res.ok) throw new Error(rawHtml);
+        resultEl.textContent = htmlToText(rawHtml); // Use the enhanced function
       } catch (e) {
         resultEl.textContent = `Error: ${e.message}`;
       }
