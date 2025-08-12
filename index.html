@@ -72,7 +72,13 @@
             </div>
             <div class="text-muted small mb-2">Usa búsqueda → trae top páginas → selecciona frases relevantes → responde con citas.</div>
             <!-- Intent bar se inserta aquí dinámicamente -->
-            <div id="answer" class=""></div>
+          </div>
+        </div>
+
+        <div class="card mt-3 shadow-soft">
+          <div class="card-body">
+            <h5 class="mb-0">Respuesta</h5>
+            <div id="answer-box" class="mt-3"></div>
           </div>
         </div>
       </div>
@@ -198,7 +204,7 @@
   <script>
     const $ = (sel) => document.querySelector(sel);
     const resultsEl = $('#results');
-    const answerEl  = $('#answer');
+    const answerEl  = $('#answer-box');
     const pageViewEl = $('#pageView');
     const pageMetaEl = $('#pageMeta');
 
@@ -520,8 +526,10 @@
 
     // UI: barra de intención
     const intentBar = document.createElement('div');
-    intentBar.className = 'd-flex flex-wrap gap-2 align-items-center mb-2';
-    answerEl.parentElement.insertBefore(intentBar, answerEl);
+    intentBar.className = 'd-flex flex-wrap gap-2 align-items-center mb-2 mt-3'; // Added mt-3 for spacing
+    const askCardBody = $('#ask').closest('.card-body');
+    askCardBody.appendChild(intentBar); // Append it to the end of the "Ask" card body
+
     function renderIntentBar(info){
       intentBar.innerHTML = '';
       const badge = document.createElement('span');

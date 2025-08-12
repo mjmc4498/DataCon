@@ -155,51 +155,73 @@ app.listen(port, ()=> console.log('Proxy escuchando en http://localhost:'+port))
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/') return new Response('Confluence CORS Worker OK');
-    if (url.pathname !== '/forward') return new Response('Not found', { status: 404 });
-
-    const target = url.searchParams.get('url');
-    if (!target) return json({ error: 'Falta parámetro url' }, 400);
-
-    const allowedHosts = (env.ALLOWED_HOSTS || '').split(',').map(s=>s.trim()).filter(Boolean);
-    const pathRegex = new RegExp(env.PATH_REGEX || '\\/rest\\/api\\/');
     const DEBUG = String(env.DEBUG||'false').toLowerCase()==='true';
 
-    let u;
-    try { u = new URL(target); } catch { return json({ error: 'URL inválida' }, 400); }
-    if (!['https:','http:'].includes(u.protocol) || !allowedHosts.includes(u.host)) {
-      return json({ error: 'Host destino no permitido' }, 400);
+    if (url.pathname === '/') return new Response('Confluence CORS Worker OK');
+
+    if (url.pathname === '/scrape') {
+      const target = url.searchParams.get('url');
+      if (!target) return json({ error: 'Falta parámetro url' }, 400);
+      try {
+        const targetUrl = new URL(target);
+        if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+          return json({ error: 'URL con protocolo no válido.' }, 400);
+        }
+      } catch (e) {
+        return json({ error: 'URL inválida.' }, 400);
+      }
+      if (DEBUG) console.log('[worker-scrape] =>', target);
+      const resp = await fetch(target, { headers: { 'User-Agent': 'Confluence-MJMC-Scraper/1.0' }});
+      if (DEBUG) console.log('[worker-scrape] <=', resp.status);
+      // Return the response directly, allowing headers like content-type to pass through.
+      return new Response(resp.body, { status: resp.status, headers: { 'access-control-allow-origin': '*' } });
     }
-    const normalizedPath = normalizePath(u.pathname);
-    if (!pathRegex.test(normalizedPath)) return json({ error:'Ruta no permitida (solo /rest/api/*)' }, 400);
 
-    const incoming = new Headers(request.headers);
-    const fwdHeaders = new Headers();
-    for (const [k,v] of incoming.entries()) {
-      const key = k.toLowerCase();
-      if (['authorization','content-type','accept','if-none-match','if-modified-since'].includes(key)) fwdHeaders.set(k, v);
+    if (url.pathname === '/forward') {
+      const target = url.searchParams.get('url');
+      if (!target) return json({ error: 'Falta parámetro url' }, 400);
+
+      const allowedHosts = (env.ALLOWED_HOSTS || '').split(',').map(s=>s.trim()).filter(Boolean);
+      const pathRegex = new RegExp(env.PATH_REGEX || '\\/rest\\/api\\/');
+
+      let u;
+      try { u = new URL(target); } catch { return json({ error: 'URL inválida' }, 400); }
+      if (!['https:','http:'].includes(u.protocol) || !allowedHosts.includes(u.host)) {
+        return json({ error: 'Host destino no permitido' }, 400);
+      }
+      const normalizedPath = normalizePath(u.pathname);
+      if (!pathRegex.test(normalizedPath)) return json({ error:'Ruta no permitida (solo /rest/api/*)' }, 400);
+
+      const incoming = new Headers(request.headers);
+      const fwdHeaders = new Headers();
+      for (const [k,v] of incoming.entries()) {
+        const key = k.toLowerCase();
+        if (['authorization','content-type','accept','if-none-match','if-modified-since'].includes(key)) fwdHeaders.set(k, v);
+      }
+
+      const init = {
+        method: request.method,
+        headers: fwdHeaders,
+        body: ['GET','HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
+        redirect: 'manual'
+      };
+      if (DEBUG) console.log('[worker] =>', init.method, target);
+
+      const resp = await fetch(target, init);
+
+      const outHeaders = new Headers();
+      for (const [k,v] of resp.headers) {
+        if (['content-type','etag','last-modified','content-length'].includes(k.toLowerCase())) outHeaders.set(k, v);
+      }
+      outHeaders.set('access-control-allow-origin', '*'); // o limita por origen con lógica extra
+      outHeaders.set('access-control-expose-headers', 'etag,last-modified');
+
+      if (DEBUG) console.log('[worker] <=', resp.status, outHeaders.get('content-type'));
+
+      return new Response(resp.body, { status: resp.status, headers: outHeaders });
     }
 
-    const init = {
-      method: request.method,
-      headers: fwdHeaders,
-      body: ['GET','HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
-      redirect: 'manual'
-    };
-    if (DEBUG) console.log('[worker] =>', init.method, target);
-
-    const resp = await fetch(target, init);
-
-    const outHeaders = new Headers();
-    for (const [k,v] of resp.headers) {
-      if (['content-type','etag','last-modified','content-length'].includes(k.toLowerCase())) outHeaders.set(k, v);
-    }
-    outHeaders.set('access-control-allow-origin', '*'); // o limita por origen con lógica extra
-    outHeaders.set('access-control-expose-headers', 'etag,last-modified');
-
-    if (DEBUG) console.log('[worker] <=', resp.status, outHeaders.get('content-type'));
-
-    return new Response(resp.body, { status: resp.status, headers: outHeaders });
+    return new Response('Not found', { status: 404 });
   }
 };
 
