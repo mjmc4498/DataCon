@@ -50,7 +50,7 @@ app.get('/scrape', async (req, res) => {
   try {
     if (DEBUG) console.log('[scrape] =>', url);
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Confluence-MJMC-Scraper/1.0' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
     });
     if (!response.ok) {
       return res.status(response.status).type('text').send(`Error al fetchear la URL: ${response.statusText}`);
@@ -171,7 +171,7 @@ export default {
         return json({ error: 'URL inválida.' }, 400);
       }
       if (DEBUG) console.log('[worker-scrape] =>', target);
-      const resp = await fetch(target, { headers: { 'User-Agent': 'Confluence-MJMC-Scraper/1.0' }});
+      const resp = await fetch(target, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }});
       if (DEBUG) console.log('[worker-scrape] <=', resp.status);
       // Return the response directly, allowing headers like content-type to pass through.
       return new Response(resp.body, { status: resp.status, headers: { 'access-control-allow-origin': '*' } });
